@@ -34,15 +34,15 @@ with st.sidebar:
             st.warning("Please select a file first.")
 
 # Main Chat Interface
-for msg in st.session_state.messages:
+for msg_idx, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "charts" in msg and msg["charts"]:
-            for chart_data in msg["charts"]:
+            for chart_idx, chart_data in enumerate(msg["charts"]):
                 try:
                     # Render plotly JSON
                     fig = go.Figure(data=chart_data.get("data", []), layout=chart_data.get("layout", {}))
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"hist_{msg_idx}_{chart_idx}")
                 except Exception as e:
                     st.error(f"Failed to render chart: {e}")
 
@@ -81,10 +81,11 @@ if query := st.chat_input("Ask a question about your data (e.g. 'Show revenue tr
                 with st.chat_message("assistant"):
                     st.markdown(bot_text)
                     if bot_charts:
-                        for bot_chart in bot_charts:
+                        for chart_idx, bot_chart in enumerate(bot_charts):
                             try:
                                 fig = go.Figure(data=bot_chart.get("data", []), layout=bot_chart.get("layout", {}))
-                                st.plotly_chart(fig, use_container_width=True)
+                                # Use a key that includes the message count to ensure uniqueness during live updates
+                                st.plotly_chart(fig, use_container_width=True, key=f"curr_{len(st.session_state.messages)}_{chart_idx}")
                             except Exception as e:
                                 st.error(f"Chart render error: {e}")
             else:
