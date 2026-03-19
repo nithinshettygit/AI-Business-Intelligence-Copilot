@@ -9,6 +9,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.models.api_models import ChatRequest, ChatResponse
+from backend.services.analysis.pandas_engine import PandasEngine
+from backend.services.llm.groq_client import get_llm_response
+import json
 
 app = FastAPI(title="AI BI Copilot API", description="Conversational BI platform API")
 
@@ -96,6 +99,68 @@ async def chat_endpoint(request: ChatRequest):
             chart=None,
             insight=None
         )
+
+# Global insights cache so we don't spam the LLM on every page load
+INSIGHTS_CACHE = []
+
+@app.get("/insights")
+def get_auto_insights():
+    """
+    Automatically generate an insight feed from the available data.
+    Returns cached insights to reduce latency and API calls, unless cache is empty.
+    """
+    global INSIGHTS_CACHE
+    if INSIGHTS_CACHE:
+        return {"insights": INSIGHTS_CACHE}
+        
+    available_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv") or f.endswith(".xlsx")]
+    if not available_files:
+        return {"insights": []}
+        
+    # Analyze the first file for automatic insights
+    target_file = available_files[0]
+    pandas_engine = PandasEngine(DATA_DIR)
+    profile = pandas_engine.get_profile(target_file)
+    
+    if "error" in profile:
+        return {"insights": [{"title": "Data Error", "description": "Could not profile uploaded data."}]}
+        
+    prompt = f"""
+    You are an AI Business Analyst. Look at this data profile:
+    Columns: {profile.get('columns')}
+    Sample: {profile.get('sample_data')}
+    
+    Identify 3 highly valuable, hypothetical or data-driven insights/trends you might expect from this data.
+    Format your response EXACTLY as a JSON list of dictionaries:
+    [
+        {{"title": "Short catchy title", "description": "1 sentence description."}},
+        {{"title": "Another title", "description": "Another description."}}
+    ]
+    DO NOT wrap in ```json or markdown.
+    """
+    
+    try:
+        response = get_llm_response(prompt, temperature=0.7)
+        # Attempt to parse json list
+        json_str = response.strip()
+        if json_str.startswith("```json"): json_str = json_str[7:]
+        if json_str.startswith("```"): json_str = json_str[3:]
+        if json_str.endswith("```"): json_str = json_str[:-3]
+        
+        insights = json.loads(json_str.strip())
+        if isinstance(insights, list):
+            INSIGHTS_CACHE = insights
+            return {"insights": insights}
+    except Exception as e:
+        print(f"Error generating insights: {e}")
+        
+    return {"insights": []}
+
+@app.post("/clear_cache")
+def clear_cache():
+    global INSIGHTS_CACHE
+    INSIGHTS_CACHE = []
+    return {"status": "Cache cleared"}
 
 if __name__ == "__main__":
     import uvicorn

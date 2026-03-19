@@ -10,6 +10,20 @@ st.set_page_config(page_title="AI BI Copilot", page_icon="🧠", layout="wide")
 st.title("🧠 AI Business Intelligence Copilot")
 st.markdown("Ask your data anything and instantly get charts, insights, and decisions.")
 
+# Fetch auto insights
+try:
+    insights_resp = requests.get(f"{API_URL}/insights", timeout=5)
+    if insights_resp.status_code == 200:
+        auto_insights = insights_resp.json().get("insights", [])
+        if auto_insights:
+            with st.expander("✨ Auto Insight Feed", expanded=True):
+                cols = st.columns(len(auto_insights))
+                for idx, insight in enumerate(auto_insights):
+                    with cols[idx]:
+                        st.info(f"**{insight.get('title', 'Insight')}**\n\n{insight.get('description', '')}")
+except Exception as e:
+    pass # API might not be ready
+
 # Initialize session state for chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -26,6 +40,11 @@ with st.sidebar:
                     response = requests.post(f"{API_URL}/upload", files=files)
                     if response.status_code == 200:
                         st.success(f"Uploaded {len(uploaded_files)} files successfully!")
+                        try:
+                            requests.post(f"{API_URL}/clear_cache")
+                        except:
+                            pass
+                        st.rerun() # Refresh the insights feed
                     else:
                         st.error(f"Error: {response.json().get('detail')}")
                 except Exception as e:

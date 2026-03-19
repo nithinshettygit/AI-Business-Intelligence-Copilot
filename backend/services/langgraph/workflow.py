@@ -43,7 +43,13 @@ def parse_and_classify_intent(state: AgentState) -> AgentState:
     Available files in context: {available_files}
     
     Determine:
-    1. The intent of the query (e.g., 'data_analysis' for structured numbers/CSVs, 'document_qa' for PDFs, 'general_chat' for unknown).
+    1. The intent of the query: 
+       - 'data_analysis' for general structured numbers/CSVs.
+       - 'document_qa' for PDFs/text.
+       - 'root_cause_analysis' if the user asks "why" something happened, asking for the driving factors of a drop/increase.
+       - 'build_dashboard' if the user explicitly asks to build or create a dashboard.
+       - 'general_chat' for unknown/casual greetings.
+    2. Which file(s) are most likely needed to answer this.
     2. Which file(s) are most likely needed to answer this.
     
     Return pure JSON, strictly in this format:
@@ -87,10 +93,14 @@ def parse_and_classify_intent(state: AgentState) -> AgentState:
         
     return state
 
-def route_by_intent(state: AgentState) -> Literal["retrieve_pdf", "process_csv", "general_reply"]:
+def route_by_intent(state: AgentState) -> Literal["retrieve_pdf", "process_csv", "root_cause_csv", "build_dashboard_csv", "general_reply"]:
     intent = state.get("intent", "general_chat")
     if intent == "document_qa":
         return "retrieve_pdf"
+    elif intent == "root_cause_analysis":
+        return "root_cause_csv"
+    elif intent == "build_dashboard":
+        return "build_dashboard_csv"
     elif intent == "data_analysis":
         return "process_csv"
     else:
@@ -145,6 +155,83 @@ def process_csv_node(state: AgentState) -> AgentState:
     state["analysis_result"] = result
     state["context"] = str(result)
     
+    return state
+
+def root_cause_csv_node(state: AgentState) -> AgentState:
+    """Specialized node to find the driving factors (Why something happened)."""
+    files = state.get("target_files", [])
+    if not files:
+        state["error"] = "No target file identified for root cause analysis."
+        return state
+        
+    target_file = files[0]
+    profile = pandas_engine.get_profile(target_file)
+    if "error" in profile:
+        state["error"] = profile["error"]
+        return state
+        
+    code_prompt = f"""
+    You are an expert Data Scientist performing Root Cause Analysis.
+    User asks: "{state['query']}"
+    The dataframe profile:
+    Columns: {profile.get('columns')}
+    Types: {profile.get('dtypes')}
+    Sample: {profile.get('sample_data')}
+    
+    Write a python function `analyze(df)` that identifies the TOP contributing factors to the metric mentioned.
+    For example, if the user asks "Why did sales drop?", calculate the total drop, then group by dimension (e.g. Region, Category) to find which specific region/category had the largest negative difference.
+    
+    Return a python dictionary containing the ranked causes and their contribution. 
+    Format example: {{'Root Causes': {{'West Region': -1000, 'Furniture': -500}}}}
+    
+    DO NOT import plotting libraries. Return ONLY the python code, no markdown wrappers.
+    """
+    
+    generated_code = get_llm_response(code_prompt, temperature=0.0).replace("```python", "").replace("```", "").strip()
+    result = pandas_engine.execute_python_code(target_file, generated_code)
+    
+    state["analysis_result"] = result
+    state["context"] = str(result)
+    return state
+
+def build_dashboard_csv_node(state: AgentState) -> AgentState:
+    """Specialized node to generate a multi-view dashboard dictionary."""
+    files = state.get("target_files", [])
+    if not files:
+        state["error"] = "No target file identified for dashboard building."
+        return state
+        
+    target_file = files[0]
+    profile = pandas_engine.get_profile(target_file)
+    if "error" in profile:
+        state["error"] = profile["error"]
+        return state
+        
+    code_prompt = f"""
+    You are an AI Dashboard Builder.
+    User asks: "{state['query']}"
+    The dataframe profile:
+    Columns: {profile.get('columns')}
+    Types: {profile.get('dtypes')}
+    Sample: {profile.get('sample_data')}
+    
+    Write a python function `analyze(df)` that extracts at least 3 distinct, valuable views (e.g. Trend over time, Breakdown by Category, Comparison by Region) relevant to the query.
+    
+    MUST return a nested dictionary. Example:
+    {{
+        'Trend': df.groupby('Date')['Revenue'].sum().to_dict(),
+        'By Region': df.groupby('Region')['Revenue'].sum().to_dict(),
+        'By Category': df.groupby('Category')['Revenue'].sum().to_dict()
+    }}
+    
+    DO NOT import plotting libraries. Return ONLY the python code, no markdown wrappers.
+    """
+    
+    generated_code = get_llm_response(code_prompt, temperature=0.0).replace("```python", "").replace("```", "").strip()
+    result = pandas_engine.execute_python_code(target_file, generated_code)
+    
+    state["analysis_result"] = result
+    state["context"] = "Generated dashboard data with multiple views."
     return state
 
 def generate_chart_node(state: AgentState) -> AgentState:
@@ -227,6 +314,10 @@ def generate_insights_and_response(state: AgentState) -> AgentState:
     {state.get('context')}
     
     Provide a clear, concise, and professional explanation answering their query based strictly on the provided context. If the context is numbers from a CSV analysis, explain what they mean.
+    
+    DECISION RECOMMENDATION ENGINE:
+    If the data analysis reveals a problem, a negative trend, or a significant drop, you MUST provide a separate 'Recommendations' bulleted section with actionable, concrete business steps to address it.
+    If the data shows positive performance, suggest how to capitalize on it.
     """
     
     response = get_llm_response(prompt, temperature=0.7)
@@ -242,6 +333,8 @@ def build_workflow() -> StateGraph:
     # Add nodes
     workflow.add_node("parse_intent", parse_and_classify_intent)
     workflow.add_node("process_csv", process_csv_node)
+    workflow.add_node("root_cause_csv", root_cause_csv_node)
+    workflow.add_node("build_dashboard_csv", build_dashboard_csv_node)
     workflow.add_node("generate_chart", generate_chart_node)
     workflow.add_node("retrieve_pdf", retrieve_pdf_node)
     workflow.add_node("generate_response", generate_insights_and_response)
@@ -261,12 +354,17 @@ def build_workflow() -> StateGraph:
         {
             "retrieve_pdf": "retrieve_pdf",
             "process_csv": "process_csv",
+            "root_cause_csv": "root_cause_csv",
+            "build_dashboard_csv": "build_dashboard_csv",
             "general_reply": "general_reply"
         }
     )
     
-    # Chain explicit visualization tool after process_csv
+    # Chain explicit visualization tool after any CSV processing
     workflow.add_edge("process_csv", "generate_chart")
+    workflow.add_edge("root_cause_csv", "generate_chart")
+    workflow.add_edge("build_dashboard_csv", "generate_chart")
+    
     workflow.add_edge("generate_chart", "generate_response")
     
     workflow.add_edge("retrieve_pdf", "generate_response")
