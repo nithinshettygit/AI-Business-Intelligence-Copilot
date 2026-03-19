@@ -254,7 +254,7 @@ def generate_chart_node(state: AgentState) -> AgentState:
             for name, data_dict in result.items():
                 if isinstance(data_dict, (dict, list)) and len(data_dict) > 0:
                     datasets_to_plot.append((f"Analysis of {name} from {target_file}", data_dict))
-        elif len(result) > 1:
+        elif isinstance(result, dict) and len(result) >= 1:
             datasets_to_plot.append((f"Analysis of {target_file}", result))
             
         for title, data_to_plot in datasets_to_plot:

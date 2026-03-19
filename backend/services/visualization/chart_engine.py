@@ -4,6 +4,10 @@ import plotly.graph_objects as go
 import pandas as pd
 from typing import Dict, Any, Optional
 
+# Premium Vibrance Palette
+VIBRANT_PALETTE = ["#00DBDE", "#FC00FF", "#00f2fe", "#4facfe", "#667eea", "#764ba2", "#ff9a9e", "#fad0c4"]
+
+
 class VisualizationEngine:
     def __init__(self):
         pass
@@ -46,17 +50,41 @@ class VisualizationEngine:
                     y_col = num_cols[0] if num_cols else df.columns[1] if len(df.columns) > 1 else x_col
                 
             if chart_type == "bar":
-                fig = px.bar(df, x=x_col, y=y_col, title=title, template="plotly_dark")
+                fig = px.bar(df, x=x_col, y=y_col, color=x_col, title=title, template="plotly_dark", color_discrete_sequence=VIBRANT_PALETTE)
             elif chart_type == "line":
-                fig = px.line(df, x=x_col, y=y_col, title=title, template="plotly_dark")
+                fig = px.line(df, x=x_col, y=y_col, title=title, template="plotly_dark", color_discrete_sequence=VIBRANT_PALETTE)
+                fig.update_traces(line=dict(width=3, color=VIBRANT_PALETTE[0])) # Ensure line is thick and bold
             elif chart_type == "pie":
-                fig = px.pie(df, names=x_col, values=y_col, title=title, template="plotly_dark")
+                fig = px.pie(df, names=x_col, values=y_col, title=title, template="plotly_dark", color_discrete_sequence=VIBRANT_PALETTE)
             elif chart_type == "scatter":
-                fig = px.scatter(df, x=x_col, y=y_col, title=title, template="plotly_dark")
+                fig = px.scatter(df, x=x_col, y=y_col, color=x_col, title=title, template="plotly_dark", color_discrete_sequence=VIBRANT_PALETTE)
+            elif chart_type == "kpi":
+                val = df[y_col].iloc[0] if y_col in df.columns and len(df) > 0 else 0
+                try:
+                    val = float(val)
+                except (ValueError, TypeError):
+                    pass
+                fig = go.Figure(go.Indicator(
+                    mode="number",
+                    value=val,
+                    number={'prefix': "$", 'font': {'color': '#00DBDE', 'size': 50}},
+                    title={"text": title, 'font': {'color': 'white', 'size': 20}}
+                ))
+                fig.update_layout(template="plotly_dark")
             else:
                 # Default back to bar
-                fig = px.bar(df, x=x_col, y=y_col, title=title, template="plotly_dark")
+                fig = px.bar(df, x=x_col, y=y_col, title=title, template="plotly_dark", color_discrete_sequence=VIBRANT_PALETTE)
                 
+            fig.update_layout(
+                font=dict(family="Inter, sans-serif", size=14, color="#FFFFFF"), # Pure white font
+                title_font=dict(size=22, family="Inter, sans-serif", color="white"),
+                margin=dict(l=40, r=40, t=80, b=40),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(color="#FFFFFF")), # Pure white axes
+                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', tickfont=dict(color="#FFFFFF"))
+            )
+            
             # Convert to dict for JSON serialization over the API
             return json.loads(fig.to_json())
             
