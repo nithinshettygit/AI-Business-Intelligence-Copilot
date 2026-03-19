@@ -248,11 +248,11 @@ def generate_chart_node(state: AgentState) -> AgentState:
         datasets_to_plot = []
         
         # Check if nested (multiple charts)
-        is_nested = all(isinstance(v, dict) for v in result.values())
+        is_nested = any(isinstance(v, (dict, list)) for v in result.values())
         if is_nested:
             print("[NODE: generate_chart] Nested dict detected - generating multiple charts.")
             for name, data_dict in result.items():
-                if isinstance(data_dict, dict) and len(data_dict) > 1:
+                if isinstance(data_dict, (dict, list)) and len(data_dict) > 0:
                     datasets_to_plot.append((f"Analysis of {name} from {target_file}", data_dict))
         elif len(result) > 1:
             datasets_to_plot.append((f"Analysis of {target_file}", result))
