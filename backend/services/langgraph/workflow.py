@@ -258,9 +258,9 @@ def generate_chart_node(state: AgentState) -> AgentState:
             datasets_to_plot.append((f"Analysis of {target_file}", result))
             
         for title, data_to_plot in datasets_to_plot:
-            chart_prompt = f"Given this data {data_to_plot}, what chart type is best: bar, line, pie, or scatter? Respond with just the word."
+            chart_prompt = f"Given this data {data_to_plot}, what chart type is best: bar, line, pie, scatter, or kpi? A 'pie' chart is good for percentages/proportions. A 'kpi' is best if the data is just a single number or a single highly important metric. Respond with just the word."
             chart_type = get_llm_response(chart_prompt, max_tokens=10).strip().lower()
-            if chart_type not in ["bar", "line", "pie", "scatter"]:
+            if chart_type not in ["bar", "line", "pie", "scatter", "kpi"]:
                 chart_type = "bar"
                 
             chart_config = visualization_engine.generate_chart_config(
