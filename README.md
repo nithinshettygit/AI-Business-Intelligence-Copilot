@@ -4,6 +4,8 @@ A powerful, conversational AI platform for business analytics. Transform your ra
 
 ---
 
+<img width="1920" height="1080" alt="Screenshot (112)" src="https://github.com/user-attachments/assets/66d85dfe-d221-46d6-a3ea-3e6eac04c8a7" />
+
 ## 🚀 Key Features
 
 ### 1. **Conversational Data Intelligence**
@@ -100,6 +102,22 @@ ai-bi-copilot/
 ├── data/                      # Local file storage/Vector Store
 └── requirements.txt
 ```
+
+<img width="1920" height="1080" alt="Screenshot (113)" src="https://github.com/user-attachments/assets/05f630ca-a43a-4926-b49d-206f88c40f9b" />
+
+```
+
+<img width="1920" height="1080" alt="Screenshot (114)" src="https://github.com/user-attachments/assets/364e877f-f2cb-4454-9fc7-3bd082de57eb" />
+
+```
+
+<img width="1920" height="1080" alt="Screenshot (115)" src="https://github.com/user-attachments/assets/c5e0b9f0-e7f4-4fca-bd12-1a76d87705c9" />
+
+
+
+```
+
+
 
 ---
 
