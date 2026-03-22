@@ -5,7 +5,7 @@ A powerful, conversational AI platform for business analytics. Transform your ra
 ---
 
 ## Flowchart
-<img width="1024" height="1536" alt="flow-chart" src="https://github.com/user-attachments/assets/d6762d82-5fd3-4965-8e94-3e6e24ffac41" />
+<img width="1024" height="1536" alt="flow-chart" src="https://github.com/user-attachments/assets/2e399c69-75de-4a7c-b5a8-a3280f85e4ab" />
 
 ---
 
